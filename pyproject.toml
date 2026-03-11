@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-codebase-reader"
+version = "0.1.0"
+description = "Multi-agent system that generates Markdown documentation for public GitHub repositories."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # HTTP API
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    # Data validation
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    # Git operations
+    "gitpython>=3.1.43",
+    # Code parsing
+    "tree-sitter>=0.23.0",
+    "tree-sitter-python>=0.23.0",
+    # Graph analysis
+    "networkx>=3.3",
+    # LLM providers (choose one or both)
+    "google-genai>=1.0.0",
+    "openai>=1.30.0",
+    # Utilities
+    "python-dotenv>=1.0.1",
+    "httpx>=0.27.0",
+    "rich>=13.7.0",        # Pretty console output
+    "tenacity>=8.3.0",     # Retry logic for LLM calls
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",       # For FastAPI test client
+    "ruff>=0.4.0",         # Linter + formatter
+    "mypy>=1.10.0",
+]
+
+[project.scripts]
+codebase-reader = "agentic_codebase_reader.cli:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

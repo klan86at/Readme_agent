@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codebase Reader — AI-Powered Documentation Generator</title>
+    <meta name="description" content="Generate documentation or GitHub README for any public repository using AI agents.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Tokens ───────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary:    #0a0e1a;
+            --bg-secondary:  #111827;
+            --bg-card:       rgba(17, 24, 39, 0.7);
+            --bg-card-hover: rgba(30, 41, 59, 0.8);
+            --border-color:  rgba(99, 102, 241, 0.2);
+            --border-glow:   rgba(99, 102, 241, 0.4);
+            --text-primary:  #f1f5f9;
+            --text-secondary:#94a3b8;
+            --text-muted:    #64748b;
+            --accent-blue:   #6366f1;
+            --accent-purple: #8b5cf6;
+            --accent-cyan:   #22d3ee;
+            --gradient-main: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+            --gradient-bg:   radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.08) 0%, transparent 50%),
+                             radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%);
+            --font-sans:     'Inter', system-ui, -apple-system, sans-serif;
+            --font-mono:     'JetBrains Mono', 'Fira Code', monospace;
+            --radius:        12px;
+            --radius-lg:     16px;
+            --shadow-card:   0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(99,102,241,0.1);
+            --transition:    all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: var(--gradient-bg);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Layout ───────────────────────────────────────────────────── */
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 720px;
+            padding: 2rem 1.5rem;
+        }
+
+        /* ── Header ───────────────────────────────────────────────────── */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .header__icon {
+            font-size: 3rem;
+            margin-bottom: 0.75rem;
+            display: inline-block;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .header__title {
+            font-size: 2.25rem;
+            font-weight: 800;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .header__tagline {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            margin-top: 0.5rem;
+            font-weight: 400;
+        }
+
+        /* ── Main Card ────────────────────────────────────────────────── */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px) saturate(1.5);
+            -webkit-backdrop-filter: blur(20px) saturate(1.5);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-card);
+            animation: fadeInUp 0.6s ease-out 0.15s both;
+        }
+
+        /* ── URL Input ────────────────────────────────────────────────── */
+        .input-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group__icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            pointer-events: none;
+            transition: var(--transition);
+        }
+
+        .input-group__field {
+            width: 100%;
+            padding: 0.9rem 1rem 0.9rem 3rem;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .input-group__field::placeholder { color: var(--text-muted); }
+
+        .input-group__field:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .input-group__field:focus ~ .input-group__icon {
+            color: var(--accent-blue);
+        }
+
+        /* ── Mode Toggle ──────────────────────────────────────────────── */
+        .mode-toggle {
+            display: flex;
+            gap: 0;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: var(--radius);
+            padding: 4px;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(99, 102, 241, 0.1);
+        }
+
+        .mode-toggle__btn {
+            flex: 1;
+            padding: 0.7rem 1rem;
+            border: none;
+            border-radius: calc(var(--radius) - 3px);
+            background: transparent;
+            color: var(--text-muted);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .mode-toggle__btn:hover:not(.active) {
+            color: var(--text-secondary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .mode-toggle__btn.active {
+            background: var(--gradient-main);
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        /* ── Generate Button ──────────────────────────────────────────── */
+        .btn-generate {
+            width: 100%;
+            padding: 0.9rem;
+            border: none;
+            border-radius: var(--radius);
+            background: var(--gradient-main);
+            color: #fff;
+            font-family: var(--font-sans);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-generate:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-generate:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-generate:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-generate::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+            transform: translateX(-100%);
+            transition: transform 0.6s ease;
+        }
+
+        .btn-generate:hover:not(:disabled)::after {
+            transform: translateX(100%);
+        }
+
+        /* ── Progress Area ────────────────────────────────────────────── */
+        .progress {
+            display: none;
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 1.5rem;
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .progress.visible { display: block; }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(99, 102, 241, 0.15);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        .progress__text {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .progress__text strong {
+            color: var(--accent-cyan);
+        }
+
+        /* ── Result Card ──────────────────────────────────────────────── */
+        .result {
+            display: none;
+            margin-top: 1.5rem;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        .result.visible { display: block; }
+
+        .result__card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+        }
+
+        .result__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+        }
+
+        .result__status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .result__status.success { color: #34d399; }
+        .result__status.error   { color: #f87171; }
+
+        .btn-download {
+            padding: 0.5rem 1.25rem;
+            border: none;
+            border-radius: calc(var(--radius) - 4px);
+            background: var(--gradient-main);
+            color: #fff;
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-download:hover {
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-copy {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: calc(var(--radius) - 4px);
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-left: 0.5rem;
+        }
+
+        .btn-copy:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+
+        /* ── Preview ──────────────────────────────────────────────────── */
+        .result__preview {
+            padding: 1.5rem;
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 0.88rem;
+            line-height: 1.7;
+        }
+
+        .result__preview pre {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            margin: 0.75rem 0;
+        }
+
+        .result__preview code {
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.15em 0.4em;
+            border-radius: 4px;
+        }
+
+        .result__preview pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        .result__preview h1 { font-size: 1.5rem; margin: 1.25rem 0 0.5rem; color: var(--text-primary); }
+        .result__preview h2 { font-size: 1.2rem; margin: 1rem 0 0.5rem; color: var(--accent-cyan); }
+        .result__preview h3 { font-size: 1.05rem; margin: 0.75rem 0 0.4rem; color: var(--accent-purple); }
+        .result__preview p  { margin: 0.5rem 0; color: var(--text-secondary); }
+        .result__preview ul, .result__preview ol { padding-left: 1.5rem; margin: 0.5rem 0; color: var(--text-secondary); }
+        .result__preview li { margin: 0.25rem 0; }
+        .result__preview a  { color: var(--accent-blue); text-decoration: none; }
+        .result__preview a:hover { text-decoration: underline; }
+        .result__preview img { max-width: 100%; border-radius: 6px; margin: 0.5rem 0; }
+        .result__preview table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
+        .result__preview th, .result__preview td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(99,102,241,0.1); }
+        .result__preview th { color: var(--text-primary); font-weight: 600; }
+        .result__preview td { color: var(--text-secondary); }
+        .result__preview blockquote { border-left: 3px solid var(--accent-blue); padding-left: 1rem; margin: 0.75rem 0; color: var(--text-muted); font-style: italic; }
+        .result__preview hr { border: none; height: 1px; background: var(--border-color); margin: 1rem 0; }
+
+        .result__preview::-webkit-scrollbar { width: 6px; }
+        .result__preview::-webkit-scrollbar-track { background: transparent; }
+        .result__preview::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 3px; }
+
+        .error-msg {
+            color: #f87171;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        /* ── Footer ───────────────────────────────────────────────────── */
+        .footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .footer a { color: var(--accent-blue); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
+        /* ── Animations ───────────────────────────────────────────────── */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-6px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* ── Responsive ───────────────────────────────────────────────── */
+        @media (max-width: 640px) {
+            .container { padding: 1.25rem 1rem; }
+            .header__title { font-size: 1.75rem; }
+            .card { padding: 1.25rem; }
+            .mode-toggle__btn { font-size: 0.82rem; padding: 0.6rem 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header__icon">⚡</div>
+            <h1 class="header__title">Codebase Reader</h1>
+            <p class="header__tagline">AI-powered documentation for any GitHub repository</p>
+        </header>
+
+        <!-- Main Card -->
+        <div class="card" id="main-card">
+            <!-- URL Input -->
+            <div class="input-group">
+                <span class="input-group__icon">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                </span>
+                <input
+                    type="url"
+                    id="repo-url"
+                    class="input-group__field"
+                    placeholder="https://github.com/owner/repo"
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+            </div>
+
+            <!-- Mode Toggle -->
+            <div class="mode-toggle" id="mode-toggle">
+                <button class="mode-toggle__btn active" data-mode="docs" id="btn-mode-docs">
+                    📖 Full Documentation
+                </button>
+                <button class="mode-toggle__btn" data-mode="readme" id="btn-mode-readme">
+                    📝 README
+                </button>
+            </div>
+
+            <!-- Generate Button -->
+            <button class="btn-generate" id="btn-generate">
+                🚀 Generate
+            </button>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress" id="progress">
+            <div class="spinner"></div>
+            <p class="progress__text" id="progress-text">
+                Generating <strong>docs</strong> for <strong>repo</strong>…
+            </p>
+        </div>
+
+        <!-- Result -->
+        <div class="result" id="result">
+            <div class="result__card">
+                <div class="result__header">
+                    <span class="result__status" id="result-status"></span>
+                    <div>
+                        <button class="btn-download" id="btn-download" style="display:none;">⬇ Download</button>
+                        <button class="btn-copy" id="btn-copy" style="display:none;">📋 Copy</button>
+                    </div>
+                </div>
+                <div class="result__preview" id="result-preview"></div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            Powered by <a href="#">Codebase Reader</a> · Multi-Agent AI Pipeline
+        </footer>
+    </div>
+
+    <!-- ── Markdown Renderer (lightweight) ────────────────────────── -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+
+    <script>
+    (() => {
+        // ── Elements ─────────────────────────────────────────────────
+        const $url       = document.getElementById('repo-url');
+        const $btnDocs   = document.getElementById('btn-mode-docs');
+        const $btnReadme = document.getElementById('btn-mode-readme');
+        const $btnGen    = document.getElementById('btn-generate');
+        const $progress  = document.getElementById('progress');
+        const $progText  = document.getElementById('progress-text');
+        const $result    = document.getElementById('result');
+        const $status    = document.getElementById('result-status');
+        const $preview   = document.getElementById('result-preview');
+        const $btnDL     = document.getElementById('btn-download');
+        const $btnCopy   = document.getElementById('btn-copy');
+
+        let currentMode = 'docs';
+        let rawMarkdown = '';
+
+        // ── Mode Toggle ──────────────────────────────────────────────
+        function setMode(mode) {
+            currentMode = mode;
+            $btnDocs.classList.toggle('active', mode === 'docs');
+            $btnReadme.classList.toggle('active', mode === 'readme');
+        }
+
+        $btnDocs.addEventListener('click',   () => setMode('docs'));
+        $btnReadme.addEventListener('click', () => setMode('readme'));
+
+        // ── Enter key shortcut ───────────────────────────────────────
+        $url.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') $btnGen.click();
+        });
+
+        // ── Generate ─────────────────────────────────────────────────
+        $btnGen.addEventListener('click', async () => {
+            const repoUrl = $url.value.trim();
+            if (!repoUrl) {
+                $url.focus();
+                $url.style.borderColor = '#f87171';
+                setTimeout(() => $url.style.borderColor = '', 1500);
+                return;
+            }
+
+            // Basic URL validation
+            if (!repoUrl.startsWith('http')) {
+                $url.style.borderColor = '#f87171';
+                setTimeout(() => $url.style.borderColor = '', 1500);
+                return;
+            }
+
+            // UI state → loading
+            $btnGen.disabled = true;
+            $btnGen.textContent = '⏳ Processing…';
+            $result.classList.remove('visible');
+            $progress.classList.add('visible');
+
+            const label = currentMode === 'readme' ? 'README' : 'documentation';
+            const repoName = repoUrl.split('/').pop() || 'repo';
+            $progText.innerHTML = `Generating <strong>${label}</strong> for <strong>${repoName}</strong>… This may take a minute.`;
+
+            try {
+                const resp = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_url: repoUrl, mode: currentMode }),
+                });
+
+                const data = await resp.json();
+
+                $progress.classList.remove('visible');
+
+                if (data.status === 'completed' && data.output_path) {
+                    // Fetch the generated markdown
+                    const fileName = currentMode === 'readme' ? 'README.md' : 'docs.md';
+                    const dlUrl = `/download/${data.repo_name}?file=${currentMode}`;
+
+                    const mdResp = await fetch(dlUrl);
+                    if (mdResp.ok) {
+                        rawMarkdown = await mdResp.text();
+                        $preview.innerHTML = marked.parse(rawMarkdown);
+                    } else {
+                        $preview.innerHTML = '<p style="color: var(--text-secondary);">Preview not available. Use the download button.</p>';
+                    }
+
+                    $status.className = 'result__status success';
+                    $status.innerHTML = '✅ Generation complete!';
+                    $btnDL.style.display = 'inline-block';
+                    $btnCopy.style.display = 'inline-block';
+                    $btnDL.onclick = () => {
+                        const blob = new Blob([rawMarkdown], { type: 'text/markdown' });
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = fileName;
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                    };
+                    $btnCopy.onclick = () => {
+                        navigator.clipboard.writeText(rawMarkdown).then(() => {
+                            $btnCopy.textContent = '✅ Copied!';
+                            setTimeout(() => $btnCopy.textContent = '📋 Copy', 2000);
+                        });
+                    };
+                } else {
+                    $status.className = 'result__status error';
+                    $status.innerHTML = '❌ Generation failed';
+                    $preview.innerHTML = `<div class="error-msg">${data.error || 'Unknown error occurred.'}</div>`;
+                    $btnDL.style.display = 'none';
+                    $btnCopy.style.display = 'none';
+                }
+
+                $result.classList.add('visible');
+
+            } catch (err) {
+                $progress.classList.remove('visible');
+                $status.className = 'result__status error';
+                $status.innerHTML = '❌ Connection failed';
+                $preview.innerHTML = `<div class="error-msg">Could not reach the API server. Make sure it's running on this host.</div>`;
+                $btnDL.style.display = 'none';
+                $btnCopy.style.display = 'none';
+                $result.classList.add('visible');
+            } finally {
+                $btnGen.disabled = false;
+                $btnGen.textContent = '🚀 Generate';
+            }
+        });
+    })();
+    </script>
+</body>
+</html>
