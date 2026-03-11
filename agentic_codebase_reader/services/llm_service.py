@@ -42,7 +42,10 @@ class GeminiClient:
     def _get_client(self) -> object:
         if self._client is None:
             from google import genai  # type: ignore[import]
-            self._client = genai.Client(api_key=settings.google_api_key)
+            self._client = genai.Client(
+                api_key=settings.google_api_key,
+                http_options={"api_version": "v1alpha"},
+            )
         return self._client
 
     # ── Standard generation ───────────────────────────────────────────────────
