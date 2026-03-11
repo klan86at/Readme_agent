@@ -53,10 +53,14 @@ class ReadmeGenie:
         """
         llm = get_llm_client()
 
-        # Run LLM-heavy sections concurrently via gather-like sequential awaits.
-        overview   = await self._gen_overview(llm, repo_name, readme_summary)
-        features   = await self._gen_features(llm, repo_name, readme_summary)
-        quickstart = await self._gen_quickstart(llm, repo_name, readme_summary)
+        # Render the file tree so LLM prompts always have structural context,
+        # even when the original repo has no README at all.
+        tree_text = self._build_structure(file_tree, max_depth=2)
+
+        # Run LLM-heavy sections sequentially.
+        overview   = await self._gen_overview(llm, repo_name, readme_summary, tree_text)
+        features   = await self._gen_features(llm, repo_name, readme_summary, tree_text)
+        quickstart = await self._gen_quickstart(llm, repo_name, readme_summary, tree_text)
 
         badges    = self._build_badges(file_tree)
         structure = self._build_structure(file_tree)
@@ -125,14 +129,17 @@ class ReadmeGenie:
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
-    async def _gen_overview(self, llm, repo_name: str, summary: str) -> str:
+    async def _gen_overview(self, llm, repo_name: str, summary: str, tree_text: str) -> str:
         """Generate a 2-3 paragraph project overview."""
+        context = summary if summary else "No README was provided."
         prompt = (
             f"You are writing a GitHub README for a project called '{repo_name}'.\n"
-            f"Here is a summary of what the project does:\n{summary}\n\n"
-            "Write a clear, engaging 2–3 paragraph overview section for the README.\n"
+            f"Here is a summary of what the project does:\n{context}\n\n"
+            f"Here is the project's directory structure:\n```\n{tree_text}\n```\n\n"
+            "Using the above information, write a clear, engaging 2–3 paragraph overview section for the README.\n"
             "Do NOT include a heading. Write in plain markdown prose.\n"
-            "Focus on: what it is, why it exists, and who it's for."
+            "Focus on: what it is, why it exists, and who it's for.\n"
+            "Even if the summary is sparse, use the directory structure and file names to infer the project's purpose."
         )
         try:
             return (await llm.complete(prompt, max_tokens=512)).strip()
@@ -140,13 +147,16 @@ class ReadmeGenie:
             logger.warning("Overview generation failed: %s", exc)
             return summary or "_No overview available._"
 
-    async def _gen_features(self, llm, repo_name: str, summary: str) -> str:
+    async def _gen_features(self, llm, repo_name: str, summary: str, tree_text: str) -> str:
         """Generate a bullet-pointed feature list."""
+        context = summary if summary else "No README was provided."
         prompt = (
             f"You are writing a GitHub README for a project called '{repo_name}'.\n"
-            f"Summary: {summary}\n\n"
-            "List 5–8 key features of this project as GitHub markdown bullet points.\n"
+            f"Summary: {context}\n\n"
+            f"Directory structure:\n```\n{tree_text}\n```\n\n"
+            "Based on the summary and directory structure, list 5–8 key features of this project as GitHub markdown bullet points.\n"
             "Each bullet should start with an emoji, be concise (one line), and be impactful.\n"
+            "Infer features from the code structure and file names if the summary lacks detail.\n"
             "Do NOT include a heading. Only output the bullet list."
         )
         try:
@@ -155,13 +165,16 @@ class ReadmeGenie:
             logger.warning("Features generation failed: %s", exc)
             return "- _Features not available._"
 
-    async def _gen_quickstart(self, llm, repo_name: str, summary: str) -> str:
+    async def _gen_quickstart(self, llm, repo_name: str, summary: str, tree_text: str) -> str:
         """Generate a quick-start usage example."""
+        context = summary if summary else "No README was provided."
         prompt = (
             f"You are writing a GitHub README for a project called '{repo_name}'.\n"
-            f"Summary: {summary}\n\n"
+            f"Summary: {context}\n\n"
+            f"Directory structure:\n```\n{tree_text}\n```\n\n"
             "Write a concise Quick Start section showing how to use this project.\n"
             "Include realistic code/command examples in fenced code blocks.\n"
+            "Infer the technology stack and entry points from the directory structure.\n"
             "Do NOT include a heading. Keep it to 15–25 lines.\n"
             "If it's a Python package, show pip install and example usage."
         )
