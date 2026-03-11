@@ -72,18 +72,29 @@ class RepoMapper:
             languages=lang_counts,
         )
 
-    async def summarize_readme(self, repo_path: Path) -> str:
+    async def summarize_readme(
+        self,
+        repo_path: Path,
+        file_tree: FileTree | None = None,
+    ) -> str:
         """Locate and summarise the repository README via LLM.
+        
+        If no README is found and a ``file_tree`` is provided, the LLM will
+        attempt to infer a summary based on the project's directory structure.
 
         Args:
             repo_path: Absolute path to the cloned repository root.
+            file_tree: Optional file tree to use as a fallback if no README exists.
 
         Returns:
-            A concise summary string, or ``""`` if no README found.
+            A concise summary string, or ``""`` if no README found and no tree provided.
         """
         readme_path = self._find_readme(repo_path)
         if readme_path is None:
-            logger.warning("No README found in %s", repo_path)
+            if file_tree:
+                logger.info("No README found. Generating fallback summary from file tree.")
+                return await self._generate_fallback_summary(file_tree)
+            logger.warning("No README found in %s and no file tree provided for fallback.", repo_path)
             return ""
 
         content = readme_path.read_text(encoding="utf-8", errors="replace")
@@ -107,6 +118,28 @@ class RepoMapper:
             logger.error("LLM summarisation failed: %s", exc)
             # Fallback: return the first 500 chars of the raw README.
             return content[:500].strip()
+
+    async def _generate_fallback_summary(self, file_tree: FileTree) -> str:
+        """Infer a project summary purely from its directory and file structure."""
+        tree_text = self.render_tree_text(file_tree, max_depth=2)
+        
+        from agentic_codebase_reader.services.llm_service import get_llm_client
+        llm = get_llm_client()
+        
+        prompt = (
+            "You are a technical documentation assistant analyzing a codebase that lacks a README.\n"
+            "Based on the following directory structure and file names, infer what this project is and what it likely does.\n"
+            "Provide a concise summary in at most 3 clear sentences.\n\n"
+            "Directory Structure:\n"
+            f"```text\n{tree_text}\n```"
+        )
+        try:
+            summary = await llm.complete(prompt, max_tokens=512)
+            logger.debug("Fallback summary generated (%d chars)", len(summary))
+            return summary.strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("LLM fallback summarisation failed: %s", exc)
+            return ""
 
     # ── Private helpers ───────────────────────────────────────────────────────
 

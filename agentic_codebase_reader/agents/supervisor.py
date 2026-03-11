@@ -120,7 +120,11 @@ class Supervisor:
             ctx.file_tree = self._mapper.build_file_tree(
                 ctx.clone_path, repo_url, ctx.repo_name
             )
-            ctx.readme_summary = await self._mapper.summarize_readme(ctx.clone_path)
+            # Step 4: Summarise README
+            logger.info("Step 4: Summarising README (or generating fallback)...")
+            ctx.readme_summary = await self._mapper.summarize_readme(
+                ctx.clone_path, file_tree=ctx.file_tree
+            )
             logger.info("File tree: %d files", ctx.file_tree.total_files)
 
             # ── Step 5: Plan priority files ───────────────────────────────────
