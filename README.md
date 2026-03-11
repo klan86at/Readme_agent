@@ -1,3 +1,12 @@
+---
+title: Codebase Reader
+emoji: 📚
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # Codebase Reader 🤖📚
 
 A multi-agent Python system that accepts a public GitHub repository URL and produces high-quality Markdown documentation — complete with prose explanations and auto-generated diagrams.
