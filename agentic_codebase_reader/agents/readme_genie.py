@@ -56,11 +56,19 @@ class ReadmeGenie:
         # Render the file tree so LLM prompts always have structural context,
         # even when the original repo has no README at all.
         tree_text = self._build_structure(file_tree, max_depth=2)
+        logger.info(
+            "ReadmeGenie context — summary length: %d chars, tree length: %d chars",
+            len(readme_summary), len(tree_text),
+        )
 
         # Run LLM-heavy sections sequentially.
         overview   = await self._gen_overview(llm, repo_name, readme_summary, tree_text)
         features   = await self._gen_features(llm, repo_name, readme_summary, tree_text)
         quickstart = await self._gen_quickstart(llm, repo_name, readme_summary, tree_text)
+        logger.info(
+            "ReadmeGenie LLM results — overview: %d, features: %d, quickstart: %d chars",
+            len(overview), len(features), len(quickstart),
+        )
 
         badges    = self._build_badges(file_tree)
         structure = self._build_structure(file_tree)
@@ -142,7 +150,9 @@ class ReadmeGenie:
             "Even if the summary is sparse, use the directory structure and file names to infer the project's purpose."
         )
         try:
-            return (await llm.complete(prompt, max_tokens=512)).strip()
+            result = (await llm.complete(prompt, max_tokens=512)).strip()
+            logger.info("Overview LLM returned %d chars", len(result))
+            return result if result else (summary or "_No overview available._")
         except Exception as exc:  # noqa: BLE001
             logger.warning("Overview generation failed: %s", exc)
             return summary or "_No overview available._"
@@ -160,7 +170,9 @@ class ReadmeGenie:
             "Do NOT include a heading. Only output the bullet list."
         )
         try:
-            return (await llm.complete(prompt, max_tokens=384)).strip()
+            result = (await llm.complete(prompt, max_tokens=384)).strip()
+            logger.info("Features LLM returned %d chars", len(result))
+            return result if result else "- _Features not available._"
         except Exception as exc:  # noqa: BLE001
             logger.warning("Features generation failed: %s", exc)
             return "- _Features not available._"
@@ -179,7 +191,9 @@ class ReadmeGenie:
             "If it's a Python package, show pip install and example usage."
         )
         try:
-            return (await llm.complete(prompt, max_tokens=512)).strip()
+            result = (await llm.complete(prompt, max_tokens=512)).strip()
+            logger.info("Quickstart LLM returned %d chars", len(result))
+            return result if result else "```bash\n# See documentation for usage\n```"
         except Exception as exc:  # noqa: BLE001
             logger.warning("Quickstart generation failed: %s", exc)
             return "```bash\n# See documentation for usage\n```"

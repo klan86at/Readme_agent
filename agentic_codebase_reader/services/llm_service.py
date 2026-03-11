@@ -66,7 +66,11 @@ class GeminiClient:
                 contents=prompt,
             ),
         )
-        return response.text
+        text = response.text
+        if not text:
+            logger.warning("Gemini returned empty response (possibly safety-blocked).")
+            return ""
+        return text
 
     # ── Context caching ───────────────────────────────────────────────────────
 
@@ -144,7 +148,11 @@ class GeminiClient:
                 ),
             ),
         )
-        return response.text
+        text = response.text
+        if not text:
+            logger.warning("Gemini cached response returned empty text.")
+            return ""
+        return text
 
     def delete_context_cache(self, cache_name: str) -> None:
         """Delete a server-side context cache.
